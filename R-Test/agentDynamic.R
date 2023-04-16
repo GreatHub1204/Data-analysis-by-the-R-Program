@@ -15,11 +15,12 @@ library("dplyr")
 
 library("ggplot2")
 
-theta_true <- c(theta_c = 0.004, theta_p = 0.003) 
+theta_true <- c(theta_c = 0.004, theta_p = 0.003)   
 
 beta <- 0.99
 
 Euler_const <- - digamma(1)
+
 
 num_choice <- 2
 
@@ -40,8 +41,11 @@ state_df <- dplyr::tibble(
   price = rep(price_states, times = num_mileage_states),
   mileage = rep(mileage_states, each = num_price_states)
 )
-state_df %>% tail(3)
 
+
+
+
+state_df %>% tail(3)
 
 gen_mileage_trans <- function(kappa){
   kappa_1 <- kappa[1]
@@ -59,6 +63,7 @@ gen_mileage_trans <- function(kappa){
       }
     }
   }
+  
   mileage_trans_mat_hat_not_buy[num_mileage_states - 1, num_mileage_states] <- kappa_1 + kappa_2
   mileage_trans_mat_hat_not_buy[num_mileage_states, num_mileage_states] <- 1
   
@@ -92,6 +97,8 @@ kappa_true <- c(0.25, 0.05)
 
 mileage_trans_mat_true <- gen_mileage_trans(kappa_true)
 
+
+
 mileage_trans_mat_true[1:4, 1:4, 1]
 
 lambda_true <- c(0.1, 0.2, 0.2, 0.2, 0.2,
@@ -102,16 +109,19 @@ lambda_true <- c(0.1, 0.2, 0.2, 0.2, 0.2,
                  0.05, 0.05, 0.1, 0.1, 0.2)
 
 price_trans_mat_true <- gen_price_trans(lambda_true)
-price_trans_mat_true
+
 
 trans_mat_true <- list()
+
+mileage_trans_mat_true[,,2]
+
 trans_mat_true$not_buy <- mileage_trans_mat_true[,,1] %x% price_trans_mat_true
 trans_mat_true$buy <- mileage_trans_mat_true[,,2] %x% price_trans_mat_true
-
+mileage_trans_mat_true[,,2]
 
 price_trans_eigen <- eigen(t(price_trans_mat_true))
 price_dist_steady <- price_trans_eigen$vectors[,1]/sum(price_trans_eigen$vectors[,1])
-price_dist_steady
+
 
 flow_utility <- function(theta, state_df){
   theta_c <- theta[1]
