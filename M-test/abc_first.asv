@@ -14,7 +14,6 @@ num_price_states = length(price_states);
 
 num_mileage_states = length(mileage_states);
 
-
 num_states = num_price_states * num_mileage_states;
 
 
@@ -28,9 +27,8 @@ state_df = table(state_id, price_id(:), mileage_id(:), price(:), mileage(:));
 state_df.Properties.VariableNames = {'state_id', 'price_id', 'mileage_id', 'price', 'mileage'};
 
 state_df(end-2:end,:)
-format short
+
 kappa_true = [0.25, 0.05];
-kappa_true
 
 mileage_trans_mat_true = gen_mileage_trans(kappa_true, num_mileage_states, num_choice);
 
@@ -51,6 +49,21 @@ price_trans_eigen = eig(price_trans_mat_true.');
 price_dist_steady = V(:,1)/sum(V(:,1));
 
 start_time = toc;
+format long
+U = flow_utility(theta_true, state_df);
+
+EV_old = zeros(num_states, num_choice);
+asdf = sum(exp(U + beta.*EV_old),2)
+EV_not_buy = Euler_const +trans_mat_true.not_buy * log(sum(exp(U + beta.*EV_old),2));
+
+EV_buy = Euler_const+trans_mat_true.buy * log(sum(exp(U + beta.*EV_old),2));
+EV_new = horzcat(EV_not_buy, EV_buy);  
+
+diff = sum(abs(EV_new - EV_old),"all");        
+EV_old = EV_new;
+
+
+
 
 
 

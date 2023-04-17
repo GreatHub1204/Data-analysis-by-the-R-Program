@@ -22,6 +22,7 @@ beta <- 0.99
 
 Euler_const <- - digamma(1)
 
+Euler_const
 
 num_choice <- 2
 
@@ -138,11 +139,14 @@ flow_utility <- function(theta, state_df){
   return(U)
 }
 
-
+print(trans_mat_true$not_buy)
+options(max.print=1000000)
 
 U <- flow_utility(theta_true, state_df)
 U
 EV_old <- matrix(0, nrow = num_states, ncol = num_choice)
+aaa<-trans_mat_true$not_buy
+aaa
 EV_not_buy <- 
   Euler_const + trans_mat_true$not_buy %*% log(rowSums(exp(U + beta*EV_old)))
 EV_not_buy
@@ -152,8 +156,15 @@ EV_buy <-
 EV_new <- cbind(EV_not_buy, EV_buy)
 EV_new
 A <- abs(EV_new-EV_old)
+B = sum(A)
+
 diff <- sum(abs(EV_new-EV_old))
-diff
+
+
+
+
+
+
 
 
 
