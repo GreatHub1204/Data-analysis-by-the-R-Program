@@ -14,6 +14,7 @@ library("magrittr")
 library("dplyr")
 
 library("ggplot2")
+library('base')
 
 theta_true <- c(theta_c = 0.004, theta_p = 0.003)   
 
@@ -43,10 +44,7 @@ state_df <- dplyr::tibble(
 )
 
 
-
-
 state_df %>% tail(3)
-
 gen_mileage_trans <- function(kappa){
   kappa_1 <- kappa[1]
   kappa_2 <- kappa[2]
@@ -69,6 +67,8 @@ gen_mileage_trans <- function(kappa){
   
   
   mileage_trans_mat_hat_buy <- matrix(1, nrow = num_mileage_states, ncol = 1) %*% mileage_trans_mat_hat_not_buy[1,]
+
+  
   
   return(array(c(mileage_trans_mat_hat_not_buy,
                  mileage_trans_mat_hat_buy),
@@ -97,7 +97,7 @@ kappa_true <- c(0.25, 0.05)
 
 mileage_trans_mat_true <- gen_mileage_trans(kappa_true)
 
-
+mileage_trans_mat_true
 
 mileage_trans_mat_true[1:4, 1:4, 1]
 
@@ -110,16 +110,17 @@ lambda_true <- c(0.1, 0.2, 0.2, 0.2, 0.2,
 
 price_trans_mat_true <- gen_price_trans(lambda_true)
 
+price_trans_mat_true
 
 trans_mat_true <- list()
 
-mileage_trans_mat_true[,,2]
 
 trans_mat_true$not_buy <- mileage_trans_mat_true[,,1] %x% price_trans_mat_true
 trans_mat_true$buy <- mileage_trans_mat_true[,,2] %x% price_trans_mat_true
-mileage_trans_mat_true[,,2]
+
 
 price_trans_eigen <- eigen(t(price_trans_mat_true))
+
 price_dist_steady <- price_trans_eigen$vectors[,1]/sum(price_trans_eigen$vectors[,1])
 
 
@@ -136,6 +137,26 @@ flow_utility <- function(theta, state_df){
     ) 
   return(U)
 }
+
+
+
+U <- flow_utility(theta_true, state_df)
+U
+EV_old <- matrix(0, nrow = num_states, ncol = num_choice)
+EV_not_buy <- 
+  Euler_const + trans_mat_true$not_buy %*% log(rowSums(exp(U + beta*EV_old)))
+EV_not_buy
+EV_buy <-
+  Euler_const + trans_mat_true$buy %*% log(rowSums(exp(U + beta*EV_old)))
+
+EV_new <- cbind(EV_not_buy, EV_buy)
+EV_new
+A <- abs(EV_new-EV_old)
+diff <- sum(abs(EV_new-EV_old))
+diff
+
+
+
 
 contraction <- 
   function(theta, beta, trans_mat, state_df) {
@@ -167,9 +188,12 @@ contraction <-
     return(EV)
   }
 
+
 start_time <- proc.time()
 
+
 EV_true <- contraction(theta_true, beta, trans_mat_true, state_df)
+EV_true
 
 end_time <- proc.time()
 
@@ -179,6 +203,8 @@ print((end_time - start_time)[[3]])
 
 
 U_true <- flow_utility(theta_true, state_df)
+U_true
+
 V_CS_true <- U_true + beta*EV_true
 colnames(V_CS_true) <- c("V_not_buy", "V_buy")
 

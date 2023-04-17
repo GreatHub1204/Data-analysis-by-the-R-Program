@@ -3,7 +3,7 @@ theta_c = 0.004;
 theta_p = 0.003;
 theta_true = [theta_c, theta_p];
 beta = 0.99;
-Euler_const = sprintf('%.7g', -psi(1));
+Euler_const = -psi(1);
 
 num_choice = 2;
 price_states = 2000:100:2500;
@@ -14,6 +14,7 @@ num_price_states = length(price_states);
 num_mileage_states = length(mileage_states);
 
 num_states = num_price_states * num_mileage_states;
+
 
 state_id = (1:num_states)';
 price_id = repmat(1:num_price_states, [1, num_mileage_states]);
@@ -39,10 +40,21 @@ trans_mat_true = [];
 trans_mat_true.not_buy = kron(mileage_trans_mat_true(:,:,1), price_trans_mat_true);
 trans_mat_true.buy = kron(mileage_trans_mat_true(:,:,2), price_trans_mat_true);
 
+format short e
+price_trans_eigen = eig(price_trans_mat_true.');
 
+[V,D] = eig(price_trans_mat_true.');
 
+price_dist_steady = V(:,1)/sum(V(:,1));
 
+start_time = toc;
 
+EV_true = contraction(theta_true, beta, trans_mat_true, state_df, num_states, num_choice, Euler_const);
+EV_true
+end_time = toc
+disp('Runtime:')
+disp(end_time - start_time);
+U_true = flow_utility(theta_true, state_df);
 
 
 
