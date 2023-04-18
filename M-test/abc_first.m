@@ -30,7 +30,7 @@ state_df.Properties.VariableNames = {'state_id', 'price_id', 'mileage_id', 'pric
 state_df(end-2:end,:)
 format short
 kappa_true = [0.25, 0.05];
-kappa_true
+
 
 mileage_trans_mat_true = gen_mileage_trans(kappa_true, num_mileage_states, num_choice);
 
@@ -52,17 +52,77 @@ price_dist_steady = V(:,1)/sum(V(:,1));
 
 start_time = toc;
 
+EV_true = contraction(theta_true, beta, trans_mat_true, state_df, num_states, num_choice, Euler_const);
+
+end_time = toc;
+
+disp('Runtime:')
+disp(end_time - start_time)
+
+U_true = flow_utility(theta_true, state_df);
+
+V_CS_true = U_true + beta.*EV_true;
+V_CS_true = renamevars(V_CS_true,["EV_not_buy","EV_buy"],["V_not_buy","V_buy"]);
 
 
-% EV_true = contraction(theta_true, beta, trans_mat_true, state_df, num_states, num_choice, Euler_const);
+exp_V_buy = exp(V_CS_true(:, "V_buy"));
+exp_V_buy = renamevars(exp_V_buy,["V_buy"],["V1"]);
+exp_V_sum = sum(exp(V_CS_true),2);
+exp_V_sum = renamevars(exp_V_sum,["sum"],["V1"]);
+format long
+prob_buy = exp_V_buy ./ exp_V_sum;
+prob_buy;
+prob_buy1 = table2array(prob_buy)
+
+trans_mat_true_not_buy = reshape(prob_buy1, [num_price_states, num_mileage_states]);
+
+trans_mat_true_not_buy;
+
+num_consumer = 1000;
+
+num_period = 12 * 50;
+
+num_period_obs = 12*10;
+
+num_obs = num_consumer * num_period;
+
+trans_mat_cum = [];
+format short
+trans_mat_cum.not_buy = cumsum(trans_mat_true.not_buy, 2);
+
+trans_mat_cum.buy = cumsum(trans_mat_true.buy, 2);
 
 
-% end_time = toc
-% disp('Runtime:')
-% disp(end_time - start_time);
-% U_true = flow_utility(theta_true, state_df);
+rng(1)
 
 
+consumer = repmat(1:num_consumer, [num_period, 1]);
+period = repmat(1:num_period,[1, num_consumer]);
+eps_type1_not_buy = gevrnd(0, 1, 0, num_obs, 1);
+eps_type1_buy = gevrnd(0, 1, 0, num_obs, 1);
+eps_unif = rand(num_obs, 1);
+eps_price_state_unif = rand(num_obs,1);
+state_id = zeros(num_obs, 1);
+action = zeros(num_obs, 1);
+ 
+data_gen = table(consumer(:), period(:),eps_type1_not_buy(:), eps_type1_buy(:),  eps_unif(:), eps_price_state_unif(:), state_id, action);
+data_gen.Properties.VariableNames = {'consumer', 'period','eps_type1_not_buy', 'eps_type1_buy', 'eps_unif', 'eps_price_state_unif', 'state_id', 'action'};
 
 
+data_gen_groups = splitapply(@ (consumer, period, eps_type1_not_buy, eps_type1_buy, eps_unif, eps_price_state_unif, state_id, action) {table(consumer, period, eps_type1_not_buy, eps_type1_buy, eps_unif, eps_price_state_unif, state_id, action)}, data_gen, findgroups(data_gen.consumer));
+
+results = cell(1, numel(data_gen_groups));
+
+for i = 1:numel(data_gen_groups)
+    group = data_gen_groups{i};
+    results{i} = generate_data(group, V_CS_true, state_df, price_dist_steady, eps_price_state_unif);
+end
+
+data_gen_result = vertcat(results{:});
+
+data_gen_result = data_gen_result(data_gen_result.period > (num_period - num_period_obs), :);
+
+data_gen_result = outerjoin(data_gen_result, state_df, 'Keys', 'state_id');
+
+tail(data_gen_result, 3);
 

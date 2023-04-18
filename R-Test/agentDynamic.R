@@ -96,6 +96,7 @@ gen_price_trans <- function(lambda){
 
 kappa_true <- c(0.25, 0.05)
 
+
 mileage_trans_mat_true <- gen_mileage_trans(kappa_true)
 
 mileage_trans_mat_true
@@ -115,7 +116,7 @@ price_trans_mat_true
 
 trans_mat_true <- list()
 
-
+mileage_trans_mat_true[,,1]
 trans_mat_true$not_buy <- mileage_trans_mat_true[,,1] %x% price_trans_mat_true
 trans_mat_true$buy <- mileage_trans_mat_true[,,2] %x% price_trans_mat_true
 
@@ -140,25 +141,6 @@ flow_utility <- function(theta, state_df){
 }
 
 print(trans_mat_true$not_buy)
-options(max.print=1000000)
-
-U <- flow_utility(theta_true, state_df)
-U
-EV_old <- matrix(0, nrow = num_states, ncol = num_choice)
-aaa<-trans_mat_true$not_buy
-aaa
-EV_not_buy <- 
-  Euler_const + trans_mat_true$not_buy %*% log(rowSums(exp(U + beta*EV_old)))
-EV_not_buy
-EV_buy <-
-  Euler_const + trans_mat_true$buy %*% log(rowSums(exp(U + beta*EV_old)))
-
-EV_new <- cbind(EV_not_buy, EV_buy)
-EV_new
-A <- abs(EV_new-EV_old)
-B = sum(A)
-
-diff <- sum(abs(EV_new-EV_old))
 
 
 
@@ -201,12 +183,12 @@ contraction <-
 
 
 start_time <- proc.time()
-
+start_time
 
 EV_true <- contraction(theta_true, beta, trans_mat_true, state_df)
-EV_true
 
 end_time <- proc.time()
+end_time
 
 cat("Runtime:\n")
 
@@ -219,6 +201,7 @@ U_true
 V_CS_true <- U_true + beta*EV_true
 colnames(V_CS_true) <- c("V_not_buy", "V_buy")
 
+exp(V_CS_true[,"V_buy"])/rowSums(exp(V_CS_true))
 prob_buy_true_mat <- matrix(exp(V_CS_true[,"V_buy"])/rowSums(exp(V_CS_true)), 
                             nrow = num_price_states, ncol = num_mileage_states)
 prob_buy_true_mat
@@ -226,12 +209,14 @@ prob_buy_true_mat
 num_consumer <- 1000
 
 num_period <- 12 * 50
+
 num_period_obs <- 12 * 10
 
 num_obs <- num_consumer * num_period
 
 trans_mat_cum <- list()
 trans_mat_cum$not_buy <- t(apply(trans_mat_true$not_buy, 1, cumsum))
+
 trans_mat_cum$buy <- t(apply(trans_mat_true$buy, 1, cumsum))
 
 
@@ -248,6 +233,10 @@ data_gen <-
     state_id = 0,
     action = 0
   )
+
+print(data_gen)
+data_gen
+
 
 generate_data <- function(df, V_CS, state_df, price_dist_steady) {
   
@@ -306,11 +295,11 @@ generate_data <- function(df, V_CS, state_df, price_dist_steady) {
   }
   return(df)
 }
-data_gen%>%select(2)
+
 
 data_gen <- 
   data_gen %>%
-  group_split(consumer) %>%
+  dplyr::group_split(consumer) %>%
 
   purrr::map_dfr(generate_data,
                  V_CS = V_CS_true,
@@ -323,7 +312,7 @@ data_gen <-
 
 data_gen %>% tail(3)
 
-##rm(V_CS_true, trans_mat_cum)
+rm(V_CS_true, trans_mat_cum)
 
 data_gen %>% 
   dplyr::select(price, mileage, action) %>%
