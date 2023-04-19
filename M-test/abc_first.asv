@@ -108,21 +108,58 @@ action = zeros(num_obs, 1);
 data_gen = table(consumer(:), period(:),eps_type1_not_buy(:), eps_type1_buy(:),  eps_unif(:), eps_price_state_unif(:), state_id, action);
 data_gen.Properties.VariableNames = {'consumer', 'period','eps_type1_not_buy', 'eps_type1_buy', 'eps_unif', 'eps_price_state_unif', 'state_id', 'action'};
 
-
 data_gen_groups = splitapply(@ (consumer, period, eps_type1_not_buy, eps_type1_buy, eps_unif, eps_price_state_unif, state_id, action) {table(consumer, period, eps_type1_not_buy, eps_type1_buy, eps_unif, eps_price_state_unif, state_id, action)}, data_gen, findgroups(data_gen.consumer));
 
 results = cell(1, numel(data_gen_groups));
 
+
 for i = 1:numel(data_gen_groups)
     group = data_gen_groups{i};
-    results{i} = generate_data(V_CS_true, state_df, price_dist_steady, group);
+
+    results{i} = generate_data(group, V_CS_true, state_df, price_dist_steady, num_period, trans_mat_cum);
+     data_gen_result = vertcat(results{:});
+
 end
-
-data_gen_result = vertcat(results{:});
-
+% 
 data_gen_result = data_gen_result(data_gen_result.period > (num_period - num_period_obs), :);
-
 data_gen_result = outerjoin(data_gen_result, state_df, 'Keys', 'state_id');
+tail(data_gen_result, 3)
 
-tail(data_gen_result, 3);
+clear V_CS_true trans_mat_cum;
+% 
+% data_gen_selected = data_gen_result(:, {'price', 'mileage', 'action'});
+mean_val = mean(data_gen_selected);
+mean_val = reshape(table2array(mean_val), [3,1])
+sd_val = std(data_gen_selected);
+sd_val = reshape(table2array(sd_val), [3,1])
+p0_val = min(data_gen_selected);
+p0_val = reshape(table2array(p0_val), [3,1])
+p100_val = max(data_gen_selected);
+p100_val = reshape(table2array(p100_val), [3,1])
+skim_variable = [{'price'; 'mileage'; 'action'}];
+skim_variable
+% 
+% Create a table to store the results
+data_gen_table = table( mean_val, sd_val, p0_val, p100_val, ...
+                     'VariableNames', {'mean', 'sd', 'p0', 'p100'}, 'RowNames',skim_variable);
+data_gen_table
+
+table2array(data_gen_table('price',:))
+
+figure;
+
+histogram(table2array(data_gen_table('price',:)),4);
+
+xlabel('price');
+ylabel('count');
+
+
+
+
+
+
+
+
+
+
 

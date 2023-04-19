@@ -12,6 +12,7 @@ library("plot3D")
 library("magrittr")
 
 library("dplyr")
+library(purrr)
 
 library("ggplot2")
 library('base')
@@ -306,11 +307,12 @@ data_gen <-
                  state_df = state_df, 
                  price_dist_steady = price_dist_steady) %>% 
 
-  filter(period > (num_period - num_period_obs)) %>% 
+  dplyr::filter(period > (num_period - num_period_obs)) %>% 
 
-  left_join(state_df, by = 'state_id')
+  dplyr::left_join(state_df, by = 'state_id')
 
 data_gen %>% tail(3)
+
 
 rm(V_CS_true, trans_mat_cum)
 
@@ -319,8 +321,14 @@ data_gen %>%
   skimr::skim() %>% 
   skimr::yank("numeric") %>% 
   dplyr::select(skim_variable, mean, sd, p0, p100) 
+data_gen
+
 data_gen %>%
   ggplot(aes(x = price)) + geom_histogram(binwidth = 100)
+
+
+
+
 
 
 
