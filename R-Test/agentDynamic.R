@@ -16,6 +16,8 @@ library(purrr)
 
 library("ggplot2")
 library('base')
+library(skimr)
+library(tidyr)
 
 theta_true <- c(theta_c = 0.004, theta_p = 0.003)   
 
@@ -291,6 +293,9 @@ generate_data <- function(df, V_CS, state_df, price_dist_steady) {
       state_id_tomorrow <- state_id_tomorrow + 1
       trans_prob <- trans_mat_cum_today[state_id_today, state_id_tomorrow]
       exceed_trans_prob <- (df$eps_unif[t] > trans_prob)
+      if(state_id_tomorrow >125){
+        break;
+      }
     }
     df$state_id[t+1]<- state_id_tomorrow
   }
@@ -322,13 +327,245 @@ data_gen %>%
   skimr::yank("numeric") %>% 
   dplyr::select(skim_variable, mean, sd, p0, p100) 
 data_gen
-
+  
 data_gen %>%
   ggplot(aes(x = price)) + geom_histogram(binwidth = 100)
 
 
+data_gen %>%
+  ggplot(aes(x = mileage)) + geom_histogram(binwidth = 5)
 
 
 
+data_gen %>% 
+  dplyr::group_by(mileage) %>% 
+  dplyr::summarize(num_state = n(),
+                   sum_action = sum(action)) %>% 
+  dplyr::mutate(prob_buy = sum_action / num_state) %>% 
+  ggplot(aes(x = mileage, y = prob_buy)) + 
+  geom_bar(stat = "identity")
 
 
+data_gen %>% 
+  dplyr::group_by(price) %>% 
+  dplyr::summarize(num_state = n(),
+                   sum_action = sum(action),
+                   .groups = 'drop') %>% 
+  dplyr::mutate(prob_buy = sum_action / num_state) %>% 
+  ggplot(aes(x = price, y = prob_buy)) + 
+  geom_bar(stat = "identity")
+
+prob_buy_obs_mat <- 
+  data_gen %>%
+  dplyr::group_by(mileage,price) %>%
+  dplyr::summarize(num_state = n(),
+                   sum_action = sum(action),
+                   .groups = 'drop') %>%
+  dplyr::mutate(prob_buy = sum_action / num_state) %>% 
+  dplyr::select(prob_buy) %>% 
+  as.matrix() %>% 
+  matrix(nrow = num_price_states, ncol = num_mileage_states)
+prob_buy_obs_mat
+
+hist3D(x = mileage_states, y = price_states, z = t(prob_buy_obs_mat), zlim=c(0,0.4),
+       bty = "g", phi = 10,  theta = -60, axes=TRUE,label=TRUE,
+       xlab = "Mileage", ylab = "Price", zlab = "Probability", main = "Conditional probability of buying",
+       col = "#0080ff", border = "blue", shade = 0.4,
+      ticktype = "detailed", space = 0.05, d = 2, cex.axis = 0.8)
+data_gen
+
+data_gen <- 
+  data_gen %>% 
+  dplyr::group_by(consumer) %>% 
+  dplyr::mutate(lag_price_id = lag(price_id),
+                lag_mileage_id = lag(mileage_id),
+                lag_action = lag(action)) %>% 
+    dplyr::ungroup() 
+
+
+data_gen
+
+num_cond_obs_mileage <- 
+  data_gen %>% 
+  # 1期目は推定に使えないため落とす
+  dplyr::filter(period != (num_period - num_period_obs + 1)) %>% 
+  # t期の走行距離、t+1期の走行距離、t期の購買ごとにグループ化して、観察数を数える
+  dplyr::group_by(lag_mileage_id, mileage_id, lag_action) %>% 
+  dplyr::summarise(num_cond_obs = n(),
+                   .groups = 'drop') 
+  
+
+num_cond_obs_mileage 
+
+
+
+kappa_est <- c()
+kappa_est[1] <- 
+  (num_cond_obs_mileage[2] * 
+     (num_cond_obs_mileage[2] + num_cond_obs_mileage[3] + num_cond_obs_mileage[4])) /
+  ((num_cond_obs_mileage[2] + num_cond_obs_mileage[3]) * 
+     (num_cond_obs_mileage[1] + num_cond_obs_mileage[2] + 
+        num_cond_obs_mileage[3] + num_cond_obs_mileage[4]))
+kappa_est[2] <- 
+  (num_cond_obs_mileage[3] * 
+     (num_cond_obs_mileage[2] + num_cond_obs_mileage[3] + num_cond_obs_mileage[4])) /
+  ((num_cond_obs_mileage[2] + num_cond_obs_mileage[3]) * 
+     (num_cond_obs_mileage[1] + num_cond_obs_mileage[2] + 
+        num_cond_obs_mileage[3] + num_cond_obs_mileage[4]))
+
+Infomat_mileage_est <- matrix(0, nrow = 2, ncol = 2)
+
+# 最尤法のフィッシャー情報量を求める
+Infomat_mileage_est[1,1] <- 
+  (num_cond_obs_mileage[1] / (1 - kappa_est[1] - kappa_est[2])^2) +
+  (num_cond_obs_mileage[2] / kappa_est[1]^2) +
+  (num_cond_obs_mileage[4] / (kappa_est[1]+kappa_est[2])^2)
+Infomat_mileage_est[1,2] <- 
+  (num_cond_obs_mileage[1] / (1 - kappa_est[1] - kappa_est[2])^2) +
+  (num_cond_obs_mileage[4] / (kappa_est[1]+kappa_est[2])^2)
+Infomat_mileage_est[2,1] <- Infomat_mileage_est[1,2]
+Infomat_mileage_est[2,2] <- 
+  (num_cond_obs_mileage[1] / (1 - kappa_est[1] - kappa_est[2])^2) +
+  (num_cond_obs_mileage[3] / kappa_est[2]^2) +
+  (num_cond_obs_mileage[4] / (kappa_est[1]+kappa_est[2])^2)
+
+# 逆行列の対角要素の平方根が標準誤差になる
+kappa_se <- sqrt(diag(solve(Infomat_mileage_est)))
+
+dplyr::tibble(kappa_est, kappa_se)
+
+num_cond_obs_price <- 
+  data_gen %>% 
+  # 1期目は推定に使えないため落とす
+  dplyr::filter(period != (num_period - num_period_obs + 1)) %>% 
+  # t期の価格、t+1期の価格ごとにグループ化して、観察数を数える
+  dplyr::group_by(lag_price_id, price_id) %>% 
+  dplyr::summarise(num_cond_obs = n(),
+                   .groups = 'drop') %>% 
+  # 観察数を行列（num_price_states行の正方行列）に変換
+  # price_id (t+1期の価格) を横に広げる
+  tidyr::pivot_wider(names_from = "price_id",
+                     values_from = "num_cond_obs") %>%
+  dplyr::select(!lag_price_id) %>% 
+  as.matrix()
+
+lambda_est_mat <- 
+  num_cond_obs_price / rowSums(num_cond_obs_price)
+lambda_est_mat
+
+
+lambda_se <- c()
+for (i in 1:num_price_states) {
+  # 最尤法のフィッシャー情報量を求める
+  Infomat_price_est <- 
+    diag(num_cond_obs_price[i,],
+         num_price_states)[-i,-i] / 
+    (lambda_est_mat[-i,-i] ^ 2) + 
+    (num_cond_obs_price[i,i] / 
+       lambda_est_mat[i,i] ^ 2) *
+    matrix(1, num_price_states, num_price_states)[-i,-i]
+  lambda_se <- c(
+    lambda_se,
+    # 逆行列の対角要素の平方根が標準誤差になる
+    sqrt(diag(solve(Infomat_price_est)))
+  )
+}
+
+lambda_se_mat <- 
+  c(0, lambda_se[1], lambda_se[2], lambda_se[3], lambda_se[4], lambda_se[5],
+    lambda_se[6], 0, lambda_se[7], lambda_se[8], lambda_se[9], lambda_se[10],
+    lambda_se[11], lambda_se[12], 0, lambda_se[13], lambda_se[14], lambda_se[15],
+    lambda_se[16], lambda_se[17], lambda_se[18], 0, lambda_se[19], lambda_se[20],
+    lambda_se[21], lambda_se[22], lambda_se[23], lambda_se[24], 0, lambda_se[25],
+    lambda_se[26], lambda_se[27], lambda_se[28], lambda_se[29], lambda_se[30], 0) %>% 
+  matrix(ncol = num_price_states, nrow = num_price_states, byrow=T)
+lambda_se_mat
+
+
+lambda_est <- as.vector(t(lambda_est_mat))[c(-1,-8,-15,-22,-29,-36)]
+dplyr::tibble(lambda_est, lambda_se)
+
+mat_ij <- Vectorize(
+  function(i,j,mat) {mat[i,j]},
+  vectorize.args = c("i", "j"))
+
+
+logLH_stat <- function(theta, state_df, df){
+  
+  
+  # 選択毎の効用関数を求める
+  U <- flow_utility(theta, state_df)
+  # 選択確率を計算
+  prob_C_stat <- exp(U) / rowSums(exp(U))
+  # 対数尤度を計算
+  sum(log(mat_ij(df$state_id, df$action + 1, prob_C_stat)))
+}
+
+
+start_time <- proc.time()
+
+# 最適化
+logit_stat_opt <- optim(theta_true, logLH_stat,
+                        state_df = state_df, df = data_gen, 
+                        control = list(fnscale = -1), 
+                        method = "Nelder-Mead")
+
+end_time <- proc.time()
+cat("Runtime:\n")
+
+print((end_time - start_time)[[3]])
+
+
+theta_est_stat <- logit_stat_opt$par
+theta_est_stat
+
+
+hessian_stat <- numDeriv::hessian(func = logLH_stat, x = theta_est_stat, 
+                                  state_df = state_df, df = data_gen)
+theta_se_stat <- sqrt(diag(solve(-hessian_stat)))
+dplyr::tibble(theta_est_stat, theta_se_stat)
+
+
+trans_mat_hat <- list()
+trans_mat_hat$not_buy <- 
+  gen_mileage_trans(kappa_est)[,,1] %x% gen_price_trans(lambda_est)
+trans_mat_hat$buy <- 
+  gen_mileage_trans(kappa_est)[,,2] %x% gen_price_trans(lambda_est)
+
+
+logLH <- function(theta, beta, trans_mat, state_df, df){
+  
+  # 選択ごとの期待価値関数を計算
+  EV <- contraction(theta, beta, trans_mat, state_df)
+  
+  # 選択毎の価値関数を定義する
+  U <- flow_utility(theta, state_df)
+  V_CS <- U + beta*EV
+  # 選択確率を計算
+  prob_C <- exp(V_CS) / rowSums(exp(V_CS))
+  # 対数尤度を計算
+  sum(log(mat_ij(df$state_id, df$action + 1, prob_C)))
+}
+
+
+start_time <- proc.time()
+
+# 最適化
+NFXP_opt <- optim(theta_true, logLH,
+                  beta = beta, trans_mat = trans_mat_hat, state_df = state_df, df = data_gen, 
+                  control = list(fnscale = -1), 
+                  method = "Nelder-Mead")
+
+end_time <- proc.time()
+cat("Runtime:\n")
+
+print((end_time - start_time)[[3]])
+
+theta_est <- NFXP_opt$par
+theta_est
+
+
+hessian <- numDeriv::hessian(func = logLH, x = theta_est, 
+                             beta = beta,　trans_mat = trans_mat_hat, state_df = state_df, df = data_gen)
+theta_se <- sqrt(diag(solve(-hessian)))
+dplyr::tibble(theta_est, theta_se)

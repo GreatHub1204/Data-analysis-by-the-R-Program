@@ -44,11 +44,12 @@ function df = generate_data(df, V_CS, state_df, price_dist_steady, num_period, t
     exceed_trans_prob = true;
     while exceed_trans_prob
         state_id_tomorrow = state_id_tomorrow + 1;
+        
+        trans_prob = trans_mat_cum_today(state_id_today, state_id_tomorrow);
+        exceed_trans_prob = (df.eps_unif(t) > trans_prob);
         if state_id_tomorrow >125
             break;
         end
-        trans_prob = trans_mat_cum_today(state_id_today, state_id_tomorrow);
-        exceed_trans_prob = (df.eps_unif(t) > trans_prob);
     end
     df.state_id(t+1) = state_id_tomorrow;
   end
