@@ -392,8 +392,50 @@ num_cond_obs_mileage <-
   # t期の走行距離、t+1期の走行距離、t期の購買ごとにグループ化して、観察数を数える
   dplyr::group_by(lag_mileage_id, mileage_id, lag_action) %>% 
   dplyr::summarise(num_cond_obs = n(),
-                   .groups = 'drop') 
-  
+                   .groups = 'drop') %>% 
+  # 確率ごとに名前を割り当てる
+  dplyr::mutate(
+    cond_obs_mileage = case_when(
+      # 1 - kappa_1 - kappa_2 の場合
+      (
+        (lag_action == 0 &
+           between(lag_mileage_id, 1, 20) &
+           (lag_mileage_id == mileage_id)) |
+          (lag_action == 1 & 
+             mileage_id == 1)
+      ) ~ 'cond_obs_mileage1',
+      # kappa_1 の場合
+      (
+        (lag_action == 0 &
+           between(lag_mileage_id, 1, 19) &
+           (lag_mileage_id == mileage_id - 1)) |
+          (lag_action == 1 & 
+             mileage_id == 2)
+      ) ~ 'cond_obs_mileage2',
+      # kappa_2 の場合
+      (
+        (lag_action == 0 &
+           between(lag_mileage_id, 1, 19) &
+           (lag_mileage_id == mileage_id - 2)) |
+          (lag_action == 1 & 
+             mileage_id == 3)
+      ) ~ 'cond_obs_mileage3',
+      # kappa_1 + kappa_2 の場合
+      (
+        lag_action == 0 &
+          lag_mileage_id == 20 &
+          mileage_id == 21
+      ) ~ 'cond_obs_mileage4',
+      TRUE ~ 'other'
+    )) %>% 
+  # 'other' は推定には使わないため落とす
+  dplyr::filter(cond_obs_mileage != 'other') %>% 
+  # 確率ごとにグループ化し、再度、観察の数を数える
+  dplyr::group_by(cond_obs_mileage) %>% 
+  dplyr::summarise(num_cond_obs = as.numeric(sum(num_cond_obs)),
+                   .groups = 'drop') %>% 
+  dplyr::select(num_cond_obs) %>% 
+  as.matrix() 
 
 num_cond_obs_mileage 
 
@@ -448,10 +490,14 @@ num_cond_obs_price <-
                      values_from = "num_cond_obs") %>%
   dplyr::select(!lag_price_id) %>% 
   as.matrix()
+num_cond_obs_price
+
+rowSums(num_cond_obs_price)
 
 lambda_est_mat <- 
   num_cond_obs_price / rowSums(num_cond_obs_price)
 lambda_est_mat
+
 
 
 lambda_se <- c()
@@ -470,6 +516,11 @@ for (i in 1:num_price_states) {
     sqrt(diag(solve(Infomat_price_est)))
   )
 }
+matrix(1, num_price_states, num_price_states)[-2,-2]
+Infomat_price_est
+lambda_se
+
+
 
 lambda_se_mat <- 
   c(0, lambda_se[1], lambda_se[2], lambda_se[3], lambda_se[4], lambda_se[5],
@@ -481,9 +532,11 @@ lambda_se_mat <-
   matrix(ncol = num_price_states, nrow = num_price_states, byrow=T)
 lambda_se_mat
 
-
 lambda_est <- as.vector(t(lambda_est_mat))[c(-1,-8,-15,-22,-29,-36)]
+lambda_est
 dplyr::tibble(lambda_est, lambda_se)
+
+
 
 mat_ij <- Vectorize(
   function(i,j,mat) {mat[i,j]},
@@ -494,37 +547,53 @@ logLH_stat <- function(theta, state_df, df){
   
   
   # 選択毎の効用関数を求める
-  U <- flow_utility(theta, state_df)
+  U <- flow_utility(theta, state_df);
   # 選択確率を計算
-  prob_C_stat <- exp(U) / rowSums(exp(U))
+  prob_C_stat <- exp(U) / rowSums(exp(U));
+
   # 対数尤度を計算
-  sum(log(mat_ij(df$state_id, df$action + 1, prob_C_stat)))
+  mat_ij(df$state_id, df$action + 1, prob_C_stat)
 }
+data_gen
+
+logLH_stat(theta_true, state_df, data_gen)
 
 
 start_time <- proc.time()
-
+data_gen
 # 最適化
 logit_stat_opt <- optim(theta_true, logLH_stat,
                         state_df = state_df, df = data_gen, 
                         control = list(fnscale = -1), 
                         method = "Nelder-Mead")
+logit_stat_opt
+
+
+
 
 end_time <- proc.time()
 cat("Runtime:\n")
 
 print((end_time - start_time)[[3]])
 
+theta_true
+state_df
 
 theta_est_stat <- logit_stat_opt$par
 theta_est_stat
 
+logLH_stat(theta_true, state_df, data_gen);
 
 hessian_stat <- numDeriv::hessian(func = logLH_stat, x = theta_est_stat, 
                                   state_df = state_df, df = data_gen)
+hessian_stat 
 theta_se_stat <- sqrt(diag(solve(-hessian_stat)))
+
+
+theta_se_stat
 dplyr::tibble(theta_est_stat, theta_se_stat)
 
+kappa_est
 
 trans_mat_hat <- list()
 trans_mat_hat$not_buy <- 
@@ -569,3 +638,5 @@ hessian <- numDeriv::hessian(func = logLH, x = theta_est,
                              beta = beta,　trans_mat = trans_mat_hat, state_df = state_df, df = data_gen)
 theta_se <- sqrt(diag(solve(-hessian)))
 dplyr::tibble(theta_est, theta_se)
+
+

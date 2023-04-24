@@ -1,4 +1,6 @@
 
+
+
 theta_c = 0.004;
 theta_p = 0.003;
 theta_true = [theta_c, theta_p];
@@ -225,7 +227,7 @@ prob_buy_obs_mat = reshape( grouped_data.num_state./ grouped_data.sum_action, [n
 %     group.Properties.VariableNames{6} = 'eps_price_state_unif';
 %     group.Properties.VariableNames{7} = 'state_id_data_gen_result';
 %     group.Properties.VariableNames{8} = 'action';
-%     group.Properties.VariableNames{9} = 'state_id_state_df';
+%     group.Properties.VariableNames{9} = 'state_id';
 %     group.Properties.VariableNames{10} = 'price_id';
 %     group.Properties.VariableNames{11} = 'mileage_id';
 %     group.Properties.VariableNames{12} = 'price';
@@ -236,16 +238,17 @@ prob_buy_obs_mat = reshape( grouped_data.num_state./ grouped_data.sum_action, [n
 %         data_consumer_result = vertcat(data_consumer_result, group);
 %     end
 % end
-
+% data_consumer_result
 
 data_gen1 =  data_consumer_result;
+
 data_gen_filtered = data_gen1(data_gen1.period ~= (num_period - num_period_obs + 1), :);
 
 num_cond_obs_mileage = varfun(@numel, data_gen_filtered, 'InputVariables', [], ...
     'GroupingVariables', {'lag_mileage_id', 'mileage_id', 'lag_action'});
 num_cond_obs_mileage.Properties.VariableNames{'GroupCount'} = 'num_cond_obs';
 
-
+num_cond_obs_mileage
 num = height(num_cond_obs_mileage);
 
 num_cond_obs_mileage_result = table();
@@ -263,24 +266,175 @@ for i = 1:num
     else 
         cond_obs_mileage.cond_obs_mileage = "other";
     end
-    cond_obs_mileage
+    
     if i == 1
         num_cond_obs_mileage_result = vertcat(cond_obs_mileage);
-        num_cond_obs_mileage_result
+        
     else
         num_cond_obs_mileage_result = [num_cond_obs_mileage_result; cond_obs_mileage];
     end
 end
 num_cond_obs_mileage_result
 
-cond_obs_mileage_filter = num_cond_obs_mileage_result(num_cond_obs_mileage_result.cond_obs_mileage ~= ('other'),:);
-
-cond_obs_select = cond_obs_mileage_filter(:, 'num_cond_obs');
-cond_obs_select = table2array(cond_obs_select);
-
-cond_obs_select
+filtered_data = num_cond_obs_mileage_result(num_cond_obs_mileage_result.cond_obs_mileage ~= "other", :);
 
 
+grouped_data = groupsummary(filtered_data, 'cond_obs_mileage', 'sum');
+
+
+% Convert the num_cond_obs column to a matrix
+result_matrix = table2array(grouped_data(:, 'sum_num_cond_obs'));
+
+
+kappa_est = zeros(1,2);
+
+for i=1:4
+    if i > length(result_matrix)
+        result_matrix(i) = 1;
+    end
+    result_matrix(i)
+end 
+kappa_est(1) = (result_matrix(2) * (result_matrix(2) + result_matrix(3) + result_matrix(4))) / ((result_matrix(2) + result_matrix(3)) * (result_matrix(1) + result_matrix(2) + result_matrix(3) + result_matrix(4)));
+kappa_est(2) = (result_matrix(3) * (result_matrix(2) + result_matrix(3) + result_matrix(4))) / ((result_matrix(2) + result_matrix(3)) * (result_matrix(1) + result_matrix(2) + result_matrix(3) + result_matrix(4)));
+kappa_est = reshape(kappa_est, 2,1);
+Infomat_mileage_est = zeros(2,2);
+
+Infomat_mileage_est(1,1) = (result_matrix(1)/(1-kappa_est(1) - kappa_est(2))^2)+ (result_matrix(2)/kappa_est(1)^2) + (result_matrix(4)/(kappa_est(1)+kappa_est(2))^2);
+Infomat_mileage_est(1,2) = (result_matrix(1)/(1-kappa_est(1) - kappa_est(2))^2)+ (result_matrix(4)/(kappa_est(1)+kappa_est(2))^2);
+Infomat_mileage_est(2,1) = Infomat_mileage_est(1,2);
+Infomat_mileage_est(2,2) = (result_matrix(1)/(1-kappa_est(1) - kappa_est(2))^2)+ (result_matrix(3)/kappa_est(2)^2) + (result_matrix(4)/(kappa_est(1)+kappa_est(2))^2);
+if isnan(Infomat_mileage_est(2,2))
+    Infomat_mileage_est(2,2) = 1;
+end
+
+kappa_se = sqrt(diag(inv(Infomat_mileage_est)));
+
+table(kappa_est, kappa_se)
+
+
+
+
+% 4.2 価格の遷移行列の推定
+
+% # それぞれの確率が実現した観察の数を数える
+
+% 1期目は推定に使えないため落とす
+data_gen_filtered = data_gen1(data_gen1.period ~= (num_period - num_period_obs + 1), :);
+% t期の価格、t+1期の価格ごとにグループ化して、観察数を数える
+num_cond_obs_price = varfun(@numel, data_gen_filtered, 'InputVariables', [], ...
+    'GroupingVariables', {'lag_price_id', 'price_id'});
+num_cond_obs_price.Properties.VariableNames{'GroupCount'} = 'num_cond_obs';
+% 観察数を行列（num_price_states行の正方行列）に変換
+%   # price_id (t+1期の価格) を横に広げる
+num_cond_obs_price = pivot(num_cond_obs_price,Columns = "price_id", Rows = "lag_price_id",DataVariable="num_cond_obs");
+num_cond_obs_price = removevars(num_cond_obs_price, 'lag_price_id');
+num_cond_obs_price = table2array(num_cond_obs_price);
+% 最尤法の解析解により推定値を求める
+lambda_est_mat = num_cond_obs_price./sum(num_cond_obs_price);
+lambda_est_mat
+
+% 最尤法の解析解により標準誤差を求める
+
+
+
+
+lambda_se = []
+matrix = ones(num_price_states, num_price_states);
+for i = 1:num_price_states
+   num_cond_obs_price_i = num_cond_obs_price(i,:);
+   
+   Infomat_price_est = diag(num_cond_obs_price_i([1:i-1,i+1:end]))./lambda_est_mat([1:i-1,i+1:end],[1:i-1,i+1:end]).^2+(num_cond_obs_price(i,i)./lambda_est_mat(i,i)^2).*matrix([1:i-1,i+1:end],[1:i-1,i+1:end]);
+
+   lambda_se = [lambda_se, sqrt(diag(inv(Infomat_price_est))).'];
+end
+
+
+lambda_se_mat = [0, lambda_se(1:6), 0, lambda_se(7:12), 0, lambda_se(13:18), 0, lambda_se(19:24), 0, lambda_se(25:30), 0];
+lambda_se_mat = reshape(lambda_se_mat, num_price_states, num_price_states).'
+
+
+lambda_est_mat
+lambda_est = lambda_est_mat.'
+lambda_est = [lambda_est(2:7), lambda_est(9:14),lambda_est(16:21),lambda_est(23:28),lambda_est(30:35)]
+lambda_est = lambda_est(:)
+
+lambda_se_mat
+lambda_se_mat = lambda_se_mat.'
+lambda_es = [lambda_se_mat(2:7), lambda_se_mat(9:14),lambda_se_mat(16:21),lambda_se_mat(23:28),lambda_se_mat(30:35)]
+lambda_es = lambda_es(:)
+
+
+table(lambda_est, lambda_es)
+
+
+% 5 パラメータの推定
+% 5.1 静学的なロジットによる推定
+
+start_time = toc;
+
+data_gen2 = data_consumer_result;
+
+
+data_gen2.Properties.VariableNames{'state_id'} = 'state_id_state_df';
+data_gen2.Properties.VariableNames{'mileage_id'} = 'mileage_id_state_df';
+data_gen2.Properties.VariableNames{'price'} = 'price_state_df';
+data_gen2.Properties.VariableNames{'mileage'} = 'mileage_state_df';
+data_gen2.Properties.VariableNames{'price_id'} = 'price_id_state_df';
+% options = optimset('Display', 'iter', 'TolFun', 1e-6, 'MaxIter', 1000, 'MaxFunEvals', 10000);
+% logit_stat_opt = fminsearch(@logLH_stat, theta_true, options, state_df, data_gen2);
+
+theta_est_stat = logit_stat_opt;
+theta_est_stat
+end_time = toc;
+
+disp('Runtime:')
+theta_true
+theta_est_stat = [0.0421    0.000687];
+
+disp(end_time - start_time);
+
+% options = optimset('Display', 'iter', 'TolFun', 1e-6, 'MaxIter', 1000, 'MaxFunEvals', 10000);
+% hessian_state = fminsearch(@logLH_stat, theta_est_stat, options, state_df, data_gen2);
+
+hessian = hessian_state;
+square1 = [0 hessian(2)];
+square2 = [hessian(2) hessian(1)]
+square = [square1; square2]
+theta_se_stat = sqrt(diag(inv(-square)));
+theta_est_stat = reshape(theta_est_stat, 2,1);
+table(theta_est_stat, theta_se_stat)
+
+
+% 5.2 不動点アルゴリズムによる推定
+
+% 推定された遷移行列を取得
+
+trans_mat_hat = [];
+kappa_est
+lambda_est
+gen_mileage_trans_est = gen_mileage_trans(kappa_est, num_mileage_states, num_choice);
+gen_mileage_trans_est
+
+trans_mat_hat.not_buy = kron(gen_mileage_trans_est(:,:,1), gen_price_trans(lambda_est));
+trans_mat_hat.buy = kron(gen_mileage_trans_est(:,:,2), gen_price_trans(lambda_est));
+
+
+
+start_time = toc;
+logLH( theta_true,  beta, trans_mat_hat, state_df, data_gen2, num_states, num_choice, Euler_const)
+
+
+% options = optimset('Display', 'iter', 'TolFun', 1e-6, 'MaxIter', 1000, 'MaxFunEvals', 10000);
+% NFXP_opt = fminsearch(@logLH, theta_true, options, beta, trans_mat_hat, state_df, data_gen2, num_states, num_choice, Euler_const);
+
+
+end_time = toc;
+disp("Runtime:")
+disp(end_time - start_time)
+
+
+theta_est = NFXP_opt 
+theta_est
 
 
 
@@ -288,6 +442,16 @@ cond_obs_select
 
 
 
+options = optimset('Display', 'iter', 'TolFun', 1e-6, 'MaxIter', 1000, 'MaxFunEvals', 10000);
+hessian_state = fminsearch(@logLH, theta_est, options, beta, trans_mat_hat, state_df, data_gen2, num_states, num_choice, Euler_const);
+
+hessian = hessian_state;
+square1 = [0 hessian(2)];
+square2 = [hessian(2) hessian(1)]
+square = [square1; square2]
+theta_se = sqrt(diag(inv(-square)));
+theta_est = reshape(theta_est, 2,1);
+table(theta_est, theta_se)
 
 
 
