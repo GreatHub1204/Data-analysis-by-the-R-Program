@@ -6,18 +6,18 @@ require(skimr)
 require(evd)
 
 require(numDeriv)
+require(graphics)
 
 library("plot3D")
 
 library("magrittr")
 
 library("dplyr")
-library(purrr)
+library('purrr')
 
 library("ggplot2")
 library('base')
-library(skimr)
-library(tidyr)
+library('tidyr')
 
 theta_true <- c(theta_c = 0.004, theta_p = 0.003)   
 
@@ -229,8 +229,8 @@ data_gen <-
   dplyr::tibble(
     consumer = rep(1:num_consumer, each = num_period),
     period = rep(1:num_period, times = num_consumer),
-    eps_type1_not_buy = evd::rgev(num_obs),
-    eps_type1_buy = evd::rgev(num_obs),
+    eps_type1_not_buy = evd::rgev(num_obs,loc=0, scale=1, shape=0),
+    eps_type1_buy = evd::rgev(num_obs, loc=0, scale=1, shape=0),
     eps_unif = runif(num_obs),
     eps_price_state_unif = runif(num_obs),
     state_id = 0,
@@ -475,7 +475,7 @@ Infomat_mileage_est[2,2] <-
 kappa_se <- sqrt(diag(solve(Infomat_mileage_est)))
 
 dplyr::tibble(kappa_est, kappa_se)
-
+data_gen
 num_cond_obs_price <- 
   data_gen %>% 
   # 1期目は推定に使えないため落とす
@@ -516,7 +516,7 @@ for (i in 1:num_price_states) {
     sqrt(diag(solve(Infomat_price_est)))
   )
 }
-matrix(1, num_price_states, num_price_states)[-2,-2]
+
 Infomat_price_est
 lambda_se
 
@@ -552,20 +552,24 @@ logLH_stat <- function(theta, state_df, df){
   prob_C_stat <- exp(U) / rowSums(exp(U));
 
   # 対数尤度を計算
-  mat_ij(df$state_id, df$action + 1, prob_C_stat)
+  mat_ij(df$state_id, df$action + 1, prob_C_stat);
 }
-data_gen
 
-logLH_stat(theta_true, state_df, data_gen)
+
+
 
 
 start_time <- proc.time()
 data_gen
 # 最適化
-logit_stat_opt <- optim(theta_true, logLH_stat,
-                        state_df = state_df, df = data_gen, 
-                        control = list(fnscale = -1), 
-                        method = "Nelder-Mead")
+logLH_stat(theta_true, state_df,  data_gen)
+
+U <- flow_utility(theta_true, state_df)
+U
+prob_C_stat <- exp(U) / rowSums(exp(U));
+prob_C_stat
+
+logit_stat_opt <- optim(theta_true, logLH_stat,state_df = state_df, df = data_gen, control = list(fnscale = -1), method = "Nelder-Mead")
 logit_stat_opt
 
 
