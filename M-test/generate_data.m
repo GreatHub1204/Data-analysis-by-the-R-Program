@@ -47,7 +47,7 @@ function df = generate_data(df, V_CS, state_df, price_dist_steady, num_period, t
         end
     end
     if break_flag ==1
-        df.state_id(t+1) = 1;
+        df.state_id(t+1) = 13;
         break_flag = 0;
     else
         df.state_id(t+1) = state_id_tomorrow;

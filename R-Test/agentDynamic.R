@@ -49,6 +49,7 @@ state_df <- dplyr::tibble(
 
 
 state_df %>% tail(3)
+
 gen_mileage_trans <- function(kappa){
   kappa_1 <- kappa[1]
   kappa_2 <- kappa[2]
@@ -222,7 +223,7 @@ trans_mat_cum$not_buy <- t(apply(trans_mat_true$not_buy, 1, cumsum))
 
 trans_mat_cum$buy <- t(apply(trans_mat_true$buy, 1, cumsum))
 
-
+trans_mat_cum
 set.seed(1)
 
 data_gen <- 
@@ -640,7 +641,16 @@ theta_est
 
 hessian <- numDeriv::hessian(func = logLH, x = theta_est, 
                              beta = beta,　trans_mat = trans_mat_hat, state_df = state_df, df = data_gen)
+
 theta_se <- sqrt(diag(solve(-hessian)))
 dplyr::tibble(theta_est, theta_se)
+
+
+
+hessian <- matrix(c(0.4265,0.0059,0.0059,0.0001),nrow=2,ncol=2)
+
+
+solve(-hessian)
+
 
 

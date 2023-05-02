@@ -9,8 +9,10 @@ for i = 1:num_mileage_states
             mileage_trans_mat_hat_not_buy(i, j) = 1 - kappa_1 - kappa_2;
         elseif i == j - 1
             mileage_trans_mat_hat_not_buy(i, j) = kappa_1;
-        elseif i == j + 1
-            mileage_trans_mat_hat_not_buy(i, j) = 0.00;
+        elseif i == j - 2
+            mileage_trans_mat_hat_not_buy(i, j) = kappa_2;
+        % elseif i == j + 1
+        %     mileage_trans_mat_hat_not_buy(i, j) = 0.00;
         end
     end
 end

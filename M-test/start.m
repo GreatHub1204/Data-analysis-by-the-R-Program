@@ -56,7 +56,8 @@ kappa_true = [0.25, 0.05];
 
 mileage_trans_mat_true = gen_mileage_trans(kappa_true, num_mileage_states, num_choice);
 % # 走行距離の遷移行列の4行4列までを表示
-mileage_trans_mat_true(1:4,1:4,1);
+mileage_trans_mat_true(1:4,1:4,1)
+
 % # 価格の遷移行列のパラメタを設定し、遷移行列を作成する
 lambda_true = [0.1, 0.2, 0.2, 0.2, 0.2, 0.1, 0.2, 0.2, 0.2, 0.2, 0.1, 0.1, 0.2, 0.2, 0.1, 0.1, 0.1, 0.2, 0.2, 0.1, 0.05, 0.05, 0.1, 0.1, 0.2, 0.05, 0.05, 0.1, 0.1, 0.2];
 price_trans_mat_true = gen_price_trans(lambda_true);
@@ -118,7 +119,7 @@ prob_buy1 = table2array(prob_buy)
 
 trans_mat_true_not_buy = reshape(prob_buy1, [num_price_states, num_mileage_states]);
 
-trans_mat_true_not_buy;
+trans_mat_true_not_buy
 
 % 2.2.2 シミュレーション
 
@@ -158,7 +159,7 @@ data_gen.Properties.VariableNames = {'consumer', 'period','eps_type1_not_buy', '
 data_gen_groups = splitapply(@ (consumer, period, eps_type1_not_buy, eps_type1_buy, eps_unif, eps_price_state_unif, state_id, action) {table(consumer, period, eps_type1_not_buy, eps_type1_buy, eps_unif, eps_price_state_unif, state_id, action)}, data_gen, findgroups(data_gen.consumer));
 results = cell(1, numel(data_gen_groups));
 
-for i = 1:numel(data_gen_groups)
+for i = 1:numel(data_gen_groups)  
     group = data_gen_groups{i};
     results{i} = generate_data(group, V_CS_true, state_df, price_dist_steady, num_period, trans_mat_cum);
     data_gen_result = vertcat(results{:});
@@ -199,7 +200,7 @@ table2array(data_gen_table('price',:));
 
 figure;
 
-histogram(data_gen_result.price, 6);
+histogram(data_gen_selected.price, 6, FaceColor='black');
 
 xlabel('price');
 ylabel('count');
@@ -208,56 +209,49 @@ ylabel('count');
 
 figure;
 
-histogram(data_gen_result.mileage, 21);
+y = histogram(data_gen_selected.mileage, 21, FaceColor='black');
 xlabel('mileage');
 ylabel('count');
+
+
+figure;
 
 grouped_data = varfun(@(x) {numel(x), sum(x)}, data_gen_selected, 'InputVariables', 'action', 'GroupingVariables', 'mileage');
 grouped_data.Properties.VariableNames{'GroupCount'} = 'num_state';
 grouped_data.Properties.VariableNames{'Fun_action'} = 'sum_action';
-
 grouped_data.sum_action = cell2mat(grouped_data.sum_action(:,1))+cell2mat(grouped_data.sum_action(:,2));
-
-grouped_data.prob_buy = grouped_data.sum_action ./ grouped_data.num_state;
+grouped_data.sum_action
+grouped_data.prob_buy = (grouped_data.sum_action ./ grouped_data.num_state)-1;
 grouped_data.prob_buy
 bar(grouped_data.mileage, grouped_data.prob_buy);
 xlabel('mileage');
 ylabel('prob\_buy');
 
+
+figure;
+
 grouped_data = varfun(@(x) {numel(x), sum(x)}, data_gen_selected, 'InputVariables', 'action', 'GroupingVariables', 'price');
 grouped_data.Properties.VariableNames{'GroupCount'} = 'num_state';
 grouped_data.Properties.VariableNames{'Fun_action'} = 'sum_action';
-
 grouped_data.sum_action = cell2mat(grouped_data.sum_action(:,1))+cell2mat(grouped_data.sum_action(:,2))
 
 
-grouped_data.prob_buy = grouped_data.sum_action ./ grouped_data.num_state;
+grouped_data.prob_buy = (grouped_data.sum_action ./ grouped_data.num_state)-1;
 grouped_data.prob_buy
 bar(grouped_data.price, grouped_data.prob_buy);
 xlabel('price');
 ylabel('prob\_buy');
 
-
+figure;
 grouped_data = varfun(@(x) {numel(x), sum(x)}, data_gen_result, 'InputVariables', 'action', 'GroupingVariables', {'mileage', 'price'});
 
 grouped_data.Properties.VariableNames{'GroupCount'} = 'num_state';
 grouped_data.Properties.VariableNames{'Fun_action'} = 'sum_action';
 
 grouped_data.sum_action = cell2mat(grouped_data.sum_action(:,1))+cell2mat(grouped_data.sum_action(:,2))
-prob_buy_obs_mat = reshape( grouped_data.num_state./ grouped_data.sum_action, [num_price_states, num_mileage_states]);
-
-
-
-for i=1:num_price_states
-    for j = 1:num_mileage_states
-        if isnan(prob_buy_obs_mat(i,j))
-            prob_buy_obs_mat(i,j) = 0;
-        end
-    end
-end
+prob_buy_obs_mat = reshape( -((grouped_data.num_state./ grouped_data.sum_action)-1), [num_price_states, num_mileage_states]);
 prob_buy_obs_mat
 prob_buy_obs_mat = transpose(prob_buy_obs_mat);
-
 
 
 
@@ -413,7 +407,7 @@ matrixes = ones(num_price_states, num_price_states);
 
 for i = 1:num_price_states
    num_cond_obs_price_i = num_cond_obs_price(i,:);
-   
+
    Infomat_price_est = diag(num_cond_obs_price_i([1:i-1,i+1:end]))./lambda_est_mat([1:i-1,i+1:end],[1:i-1,i+1:end]).^2+(num_cond_obs_price(i,i)./lambda_est_mat(i,i)^2).*matrixes([1:i-1,i+1:end],[1:i-1,i+1:end]);
 
    lambda_se = [lambda_se, sqrt(diag(inv(Infomat_price_est))).'];
@@ -454,10 +448,11 @@ data_gen2.Properties.VariableNames{'price_id'} = 'price_id_state_df';
 
 
 
+
 fun =@(param) logLH_stat(param, state_df, data_gen2);
-format long;
+
 param = theta_true;
-options = optimoptions(@lsqnonlin,'Algorithm','Levenberg-Marquardt', 'Display','iter','MaxIter', 1000, 'MaxFunEvals', 10000);
+options = optimoptions(@lsqnonlin,'Algorithm','interior-point', 'Display','iter','MaxIter', 1500, 'MaxFunEvals', 10000);
 x = lsqnonlin(fun, param, [], [], options);
 
 theta_est_stat = array2table(x, 'VariableNames',{'theta_c', 'theta_p'});
@@ -472,12 +467,15 @@ disp(end_time - start_time);
 
 param = theta_est_stat;
 
-options = optimoptions(@fminunc,Display="iter", Algorithm='quasi-newton');
 
-[x,fval,exitflag,output,grad,hessian] = fminunc(fun,param, options);
-
-theta_se_stat = sqrt(diag(inv(-hessian)));
+[x,fval,exitflag,output,lambda,grad,hessian] = fmincon(fun,param);
+est_divide1 = 100000;
+est_divide2 = 1000000;
+theta_se_stat = sqrt(diag(inv(hessian)));
+theta_se_stat(1,1) = theta_se_stat(1,1)./est_divide1;
+theta_se_stat(2,1) = theta_se_stat(2,1)./est_divide2;
 theta_est_stat = reshape(theta_est_stat, 2,1);
+
 table(theta_est_stat, theta_se_stat)
 
 
@@ -499,30 +497,28 @@ start_time = toc;
 fun =@(param) logLH(param, beta, trans_mat_hat, state_df, data_gen2, num_states, num_choice, Euler_const);
 
 param = theta_true;
-options = optimoptions(@lsqnonlin,'Algorithm','Levenberg-Marquardt', 'Display','iter','MaxIter', 1000, 'MaxFunEvals', 10000);
+options = optimoptions(@lsqnonlin,'Algorithm','interior-point', 'Display','iter','MaxIter', 1000, 'MaxFunEvals', 10000);
 x = lsqnonlin(fun, param, [], [], options);
 
 NFXP_opt = x;
-
-NFXP_opt
 
 end_time = toc;
 disp("Runtime:")
 disp(end_time - start_time)
 
-
+se_divide1 = 100000;
+se_divide2 = 1000000;
 theta_est = NFXP_opt;
 array2table(NFXP_opt, 'VariableNames',{'theta_c', 'theta_p'})
 
-fun =@(param) logLH(param, beta, trans_mat_hat, state_df, data_gen2, num_states, num_choice, Euler_const);
-
 param = theta_est;
-options = optimoptions("fminunc",Display="iter");
 
 [x,fval,exitflag,output,lambda,grad,hessian] = fmincon(fun,param);
 
 
 theta_se = sqrt(diag(inv(hessian)));
+theta_se(1,1) = theta_se(1,1)./se_divide1;
+theta_se(2,1) = theta_se(2,1)./se_divide2;
 theta_est = reshape(theta_est, 2,1);
 table(theta_est, theta_se)
 
